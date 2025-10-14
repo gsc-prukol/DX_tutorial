@@ -5,11 +5,20 @@
 #endif
 
 #include <windows.h>
-#include <d3d12.h>
-#include <dxgi1_4.h>
-#include <D3Dcompiler.h>
-#include <DirectXMath.h>
-#include "d3dx12.h"
+
+HWND hwnd = nullptr;
+LPCTSTR WindowsName = L"DX12 Tutorial";
+LPCTSTR WindowsTitle = L"DX12 Tutorial Window";
+
+
+// create a window
+bool InitializeWindow(HINSTANCE hInstance,
+	int ShowWnd,
+	int width, int height,
+	bool fullscreen);
+
+// main application loop
+void Mainloop();
 
 // callback function for windows messages
 LRESULT CALLBACK WndProc(HWND hWnd,
