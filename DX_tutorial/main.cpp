@@ -25,6 +25,7 @@ int WINAPI WinMain(
 
 	WaitForPreviousFrame();
 	CloseHandle(fenceEvent);
+	Cleanup();
 
     return 0;
 }
@@ -109,7 +110,8 @@ void Mainloop()
 			DispatchMessage(&msg);
 		}
 		else {
-			// run game code
+			Update();
+			Render();
 		}
 	}
 }
