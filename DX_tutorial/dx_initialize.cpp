@@ -34,7 +34,9 @@ ID3D12Resource* vertexBuffer = nullptr;
 D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {};
 
 struct Vertex {
+	Vertex(float x, float y, float z, float r, float g, float b, float a) : pos(x, y, z), color(r, g, b, a) {}
 	XMFLOAT3 pos;
+	XMFLOAT4 color;
 };
 
 bool InitD3D(HWND hwnd)
@@ -241,7 +243,8 @@ bool InitD3D(HWND hwnd)
 
 	D3D12_INPUT_ELEMENT_DESC inputLayout[] =
 	{
-		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
 	};
 
 	D3D12_INPUT_LAYOUT_DESC inputLayoutDesc = {};
@@ -273,9 +276,9 @@ bool InitD3D(HWND hwnd)
 	// Create vertex buffer
 
 	Vertex vList[] = {
-		{ { 0.0f, 0.5f, 0.5f } },
-		{ { 0.5f, -0.5f, 0.5f } },
-		{ { -0.5f, -0.5f, 0.5f } },
+		Vertex(0.0f, 0.8f, 0.8f, 1.f, 0.f, 0.f, 1.f),
+		Vertex(0.8f, -0.8f, 0.8f, 0.f, 1.f, 0.f, 1.f),
+		Vertex(-0.8f, -0.8f, 0.8f, 0.f, 0.f, 1.f, 1.f),
 	};
 
 	int vBufferSize = sizeof(vList);
@@ -440,8 +443,9 @@ void Cleanup()
 	}
 
 	BOOL fs = FALSE;
-
-	if (swapChain->GetFullscreenState(&fs, nullptr))
+	swapChain->GetFullscreenState(&fs, nullptr);
+	
+	if (fs)
 	{
 		swapChain->SetFullscreenState(false, nullptr);
 	}
