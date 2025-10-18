@@ -33,6 +33,9 @@ D3D12_RECT scissorRect = {};
 ID3D12Resource* vertexBuffer = nullptr;
 D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {};
 
+ID3D12Resource* indexBuffer = nullptr;
+D3D12_INDEX_BUFFER_VIEW indexBufferView = {};
+
 struct Vertex {
 	Vertex(float x, float y, float z, float r, float g, float b, float a) : pos(x, y, z), color(r, g, b, a) {}
 	XMFLOAT3 pos;
@@ -276,9 +279,10 @@ bool InitD3D(HWND hwnd)
 	// Create vertex buffer
 
 	Vertex vList[] = {
-		Vertex(0.0f, 0.8f, 0.8f, 1.f, 0.f, 0.f, 1.f),
-		Vertex(0.8f, -0.8f, 0.8f, 0.f, 1.f, 0.f, 1.f),
-		Vertex(-0.8f, -0.8f, 0.8f, 0.f, 0.f, 1.f, 1.f),
+		Vertex(-0.99f,  0.99f, 0.5f,		1.f, 0.f, 0.f,		1.f),
+		Vertex( 0.99f, -0.99f, 0.5f,		0.f, 1.f, 0.f,		1.f),
+		Vertex(-0.99f, -0.99f, 0.5f,		0.f, 0.f, 1.f,		1.f),
+		Vertex( 0.99f,  0.99f, 0.5f,		1.f, 1.f, 0.f,		1.f)
 	};
 
 	int vBufferSize = sizeof(vList);
@@ -320,6 +324,53 @@ bool InitD3D(HWND hwnd)
 
 	commandList->ResourceBarrier(1, &barrier);
 
+	// create index buffer
+	DWORD iList[] = {
+		0, 1, 2,
+		0, 3, 1
+	};
+
+	int iBufferSize = sizeof(iList);
+	CD3DX12_RESOURCE_DESC indexBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(iBufferSize);
+	CD3DX12_HEAP_PROPERTIES heapPropertiesIndex = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+
+	device->CreateCommittedResource(
+		&heapPropertiesIndex,
+		D3D12_HEAP_FLAG_NONE,
+		&indexBufferDesc,
+		D3D12_RESOURCE_STATE_COPY_DEST,
+		nullptr,
+		IID_PPV_ARGS(&indexBuffer));
+	vertexBuffer->SetName(L"Index Buffer Resource Heap");
+
+	ID3D12Resource* iBufferUploadHeap;
+	
+	CD3DX12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+	CD3DX12_RESOURCE_DESC resourceDescBuffer = CD3DX12_RESOURCE_DESC::Buffer(vBufferSize);
+
+	device->CreateCommittedResource(
+		&heapProperties, // upload heap
+		D3D12_HEAP_FLAG_NONE, // no flags
+		&resourceDescBuffer, // resource description for a buffer
+		D3D12_RESOURCE_STATE_GENERIC_READ, // GPU will read from this buffer and copy its contents to the default heap
+		nullptr,
+		IID_PPV_ARGS(&iBufferUploadHeap));
+	vBufferUploadHeap->SetName(L"Index Buffer Upload Resource Heap");
+
+	// store vertex buffer in upload heap
+	D3D12_SUBRESOURCE_DATA indexData = {};
+	indexData.pData = reinterpret_cast<BYTE*>(iList); // pointer to our index array
+	indexData.RowPitch = iBufferSize; // size of all our index buffer
+	indexData.SlicePitch = iBufferSize; // also the size of our index buffer
+
+	// we are now creating a command with the command list to copy the data from
+	// the upload heap to the default heap
+	UpdateSubresources(commandList, indexBuffer, iBufferUploadHeap, 0, 0, 1, &indexData);
+
+	// transition the vertex buffer data from copy destination state to vertex buffer state
+	barrier = CD3DX12_RESOURCE_BARRIER::Transition(indexBuffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+	commandList->ResourceBarrier(1, &barrier);
+
 	commandList->Close();
 	ID3D12CommandList* ppCommandLists[] = { commandList };
 	commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
@@ -334,6 +385,11 @@ bool InitD3D(HWND hwnd)
 	vertexBufferView.BufferLocation = vertexBuffer->GetGPUVirtualAddress();
 	vertexBufferView.StrideInBytes = sizeof(Vertex);
 	vertexBufferView.SizeInBytes = vBufferSize;
+
+	// create a vertex buffer view for the triangle. We get the GPU memory address to the vertex pointer using the GetGPUVirtualAddress() method
+	indexBufferView.BufferLocation = indexBuffer->GetGPUVirtualAddress();
+	indexBufferView.Format = DXGI_FORMAT_R32_UINT; // 32-bit unsigned integer (this is what a dword is, double word, a word is 2 bytes)
+	indexBufferView.SizeInBytes = iBufferSize;
 
 	// Fill out the Viewport
 	viewport.TopLeftX = 0;
@@ -395,7 +451,8 @@ void UpdatePipeline()
 	commandList->RSSetScissorRects(1, &scissorRect); // set the scissor rects
 	commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // set the primitive topology
 	commandList->IASetVertexBuffers(0, 1, &vertexBufferView); // set the vertex buffer (using the vertex buffer view)
-	commandList->DrawInstanced(3, 1, 0, 0); // finally draw 3 vertices (draw the triangle)
+	commandList->IASetIndexBuffer(&indexBufferView);
+	commandList->DrawIndexedInstanced(6, 1, 0, 0, 0);
 
 	barrier = CD3DX12_RESOURCE_BARRIER::Transition(renderTargets[frameIndex],
 		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
@@ -466,6 +523,7 @@ void Cleanup()
 	SAFE_RELEASE(pipelineStateObject);
 	SAFE_RELEASE(rootSignature);
 	SAFE_RELEASE(vertexBuffer);
+	SAFE_RELEASE(indexBuffer);
 }
 
 void WaitForPreviousFrame()
